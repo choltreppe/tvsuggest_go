@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" type="text/css" href="/static/style/base.css">
+  <link rel="stylesheet" type="text/css" href="/static/style/login.css">
+  <title>Show Suggest</title>
+</head>
+<body>
+
+  <form id="login" class="box" onsubmit="post('/login', '/')">
+
+    <div class="error hidden"></div>
+
+    <input type="text" name="email" placeholder="Email">
+    <input type="password" name="passwd" placeholder="Password">
+    <div class="buttons">
+      <div class="button" onclick="post('/register', '/register/wait-to-confirm')">Register</div>
+      <input type="submit" class="primary" value="Sign In">
+    </div>
+  </form>
+
+  <script type="text/javascript">
+    
+    let loginForm = document.getElementById("login")
+    let errorBox = loginForm.getElementsByClassName("error")[0]
+
+    function showError(msg) {
+      errorBox.innerHTML = msg
+      errorBox.classList.remove("hidden")
+    }
+
+    function post(url, successUrl) {
+      event.preventDefault()
+      fetch(url, {
+        method: "POST",
+        body: new FormData(loginForm)
+      })
+      .then(resp => {
+        switch (resp.status) {
+        case 200:
+          window.location.href = successUrl
+          break
+        case 400:
+          resp.text().then(resp => showError(resp))
+          break
+        case 500: case 502:
+          showError("Sorry something went wrong. Please try again later.")
+          break
+        }
+      })
+    }
+
+  </script>
+
+</body>
+</html>

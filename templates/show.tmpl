@@ -1,0 +1,15 @@
+<div class="show box">
+  <div class="type">{{.Type}}</div>
+  <div class="title">{{.Title}}</div>
+  <div class="year">{{.StartYear}}</div>
+  <div class="img" style="background-image:url({{.Img.Url}})"></div>
+  <div class="rating">
+    {{$id := .ID}}
+    {{range .RatingButtons}}
+      <div
+        class="{{.Name}} {{if .Selected}}selected{{end}}"
+        onclick="rateShow('{{$id}}', {{.Score}})"
+      ></div>
+    {{end}}
+  </div>
+</div>

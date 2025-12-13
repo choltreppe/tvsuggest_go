@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="32"
+   height="32"
+   viewBox="0 0 8.4666666 8.4666666"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4.2 (ebf0e940d0, 2025-05-08)"
+   sodipodi:docname="better.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#505050"
+     bordercolor="#eeeeee"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="11.197603"
+     inkscape:cx="4.1973269"
+     inkscape:cy="-0.6697862"
+     inkscape:window-width="2560"
+     inkscape:window-height="1356"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1"
+     showgrid="false" />
+  <defs
+     id="defs1" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <path
+       id="path16"
+       style="fill:#ffffff;fill-opacity:1;stroke-width:3.811;stroke-linejoin:round;stroke-dashoffset:1.88976"
+       d="M 5.5004331,1.8969619 C 5.3414781,1.8991972 5.1542703,2.0143776 5.0738607,2.3167482 5.003541,2.5811737 4.7343365,2.7626506 4.4926341,2.9737574 4.4689856,3.1485153 4.4253006,3.3157403 4.3716957,3.4761079 h 0.5273491 c 0.1622764,0 0.3454342,0.071236 0.4548701,0.228689 0.1094315,0.1574573 0.1244343,0.3656762 0.069573,0.5727015 L 5.1114615,5.4543017 c 0.2362574,0.01064 0.4967222,0.0093 0.7798788,-0.00402 0.1787634,-0.00841 0.3585906,-0.1398145 0.4029282,-0.3131954 L 6.6844024,3.664724 C 6.7661933,3.3560413 6.6110518,3.2170334 6.4320693,3.2170334 H 5.4917113 C 5.6630223,2.9234428 5.776133,2.5153825 5.762847,2.1003127 5.7588235,1.9794323 5.640697,1.8946732 5.5004331,1.8970112 Z M 3.9674085,2.4374898 C 3.8084536,2.4397258 3.6212502,2.5549056 3.5408451,2.8572761 3.4210646,3.3077026 2.723835,3.5177767 2.5692834,4.0427967 2.3279164,4.0562529 2.0891376,4.057326 1.811104,4.057326 c -0.1754462,0 -0.3166803,0.1412341 -0.3166803,0.3166848 v 1.114584 c 0,0.1754551 0.1412341,0.3166848 0.3166803,0.3166848 0.2750742,0.00402 0.3722389,0.0084 0.6453818,-0.023068 C 2.8528201,5.9620351 3.5023101,6.031094 4.3583247,5.990753 4.537088,5.982353 4.7169153,5.8509406 4.7612485,5.6775596 L 5.1513868,4.2051983 C 5.2331732,3.8965155 5.077835,3.7575031 4.8988526,3.7575031 H 3.9586911 C 4.1299978,3.4639126 4.2431085,3.0558567 4.2298269,2.6407824 4.2258034,2.5199065 4.107677,2.4351429 3.9674085,2.4374809 Z" />
+  </g>
+</svg>

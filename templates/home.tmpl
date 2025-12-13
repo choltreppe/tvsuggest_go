@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" type="text/css" href="/static/style/base.css">
+  <link rel="stylesheet" type="text/css" href="/static/style/home.css">
+  <title>Show Suggest</title>
+</head>
+<body>
+  <div id="head-bar"><div class="box">
+    <div class="suggestions" onclick="loadSuggestions()">Suggestions</div>
+    <div class="rating">
+      <div class="worse"  onclick="loadRating(-2)"></div>
+      <div class="bad"    onclick="loadRating(-1)"></div>
+      <div class="good"   onclick="loadRating( 1)"></div>
+      <div class="better" onclick="loadRating( 2)"></div>
+    </div>
+    <input
+      type="text"
+      id="search"
+      placeholder="Search Movie or TV-Show"
+      onkeydown="if (event.keyCode == 13) loadContent('/search/' + encodeURIComponent(this.value))"
+    >
+  </div></div>
+
+  <div id="popup" class="hidden">
+    <div class="box"></div>
+    <div class="backdrop" onclick="closePopup()"></div>
+  </div>
+  
+  <div id="content"></div>
+
+  <script type="text/javascript">
+    
+    let content = document.getElementById("content")
+    let suggestionsButton = document.querySelector("#head-bar .suggestions")
+    let ratingTabs = document.querySelector("#head-bar .rating").children
+    let ratings = [-2, -1, 1, 2]
+    let searchBar = document.querySelector("#head-bar input")
+
+    function unselectMenu() {
+      suggestionsButton.classList.remove("selected")
+      for (rating of ratingTabs) {
+        rating.classList.remove("selected")
+      }
+    }
+
+    function loadContent(url) {
+      unselectMenu()
+      fetch(url)
+      .then(resp => resp.text())
+      .then(resp => content.innerHTML = resp)
+    }
+
+    function loadSuggestions() {
+      loadContent('/suggestions')
+      suggestionsButton.classList.add("selected")
+    }
+
+    function loadRating(score) {
+      searchBar.value = ""
+      loadContent(`/my-ratings/${score}`)
+      ratingTabs[ratings.indexOf(score)].classList.add("selected")
+    }
+
+    function rateShow(id, score) {
+      fetch(`/rate/${encodeURIComponent(id)}/${score}`, {method: "POST"})
+      .then(resp => {
+        if (resp.status == 200)
+          loadRating(score)
+      })
+    }
+
+    let popupContainer = document.getElementById("popup")
+    let popupBox = popupContainer.getElementsByClassName("box")[0]
+
+    function popupShow(id, title, imgUrl) {
+      popupBox.innerHTML = title
+      popupContainer.classList.remove("hidden")
+    }
+
+    function closePopup() {
+      popupContainer.classList.add("hidden")
+    }
+
+  </script>
+
+</body>
+</html>

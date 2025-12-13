@@ -1,0 +1,165 @@
+package main
+
+import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/url"
+	"time"
+
+	"golang.org/x/crypto/bcrypt"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+)
+
+type IntString string
+
+func (s *IntString) UnmarshalJSON(b []byte) error {
+    if string(b) == "null" {
+        *s = ""
+        return nil
+    }
+    var num json.Number
+    if err := json.Unmarshal(b, &num); err != nil {
+        return err
+    }
+    *s = IntString(num.String())
+    return nil
+}
+
+type User struct {
+    Email string `gorm:"primaryKey"`
+    PwHash []byte
+    Ratings []UserRating `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+}
+
+type UserRating struct {
+    UserEmail, ShowId string `gorm:"primaryKey"`
+    Score int8 `gorm:"check: score >= -2 AND score <= 2"`
+    UpdatedAt time.Time
+}
+
+// maybe precompute relations periodically in future if data gets bigger
+/*type ShowRelation struct {
+    Show1, Show2 string `gorm:"primaryKey"`
+    Score int
+}*/
+
+type Show struct {
+    ID string `json:"id"`
+    Type string `json:"type"`
+    Title string `json:"primaryTitle"`
+    Img struct {
+        Url string `json:"url"`
+    } `json:"primaryImage"`
+    StartYear IntString `json:"startYear"`
+}
+
+
+func InitDB() *gorm.DB {
+    db, err := gorm.Open(sqlite.Open("data.db"), &gorm.Config{})
+    if err != nil {
+        panic("Failed to connect database")
+    }
+    return db
+}
+
+func MigrateDB(db *gorm.DB) {
+    db.AutoMigrate(&User{}, &UserRating{}, /*&ShowRelation{}*/)
+}
+
+func VerifyUser(db *gorm.DB, email, password string) bool {
+    var user User
+    err := db.Where("email = ?", email).First(&user).Error
+    return err == nil && bcrypt.CompareHashAndPassword(user.PwHash, []byte(password)) == nil
+}
+
+
+const movieDbApiUrl = "https://api.imdbapi.dev"
+
+func parseShows(r io.ReadCloser) (shows []Show, err error) {
+    body, err := io.ReadAll(r)
+    r.Close()
+    if err != nil { return }
+    type ShowList struct {
+        Titles []Show `json:"titles"`
+    }
+    var showList ShowList
+    if err = json.Unmarshal(body, &showList); err != nil { return }
+    return showList.Titles, nil
+}
+
+func FindShows(title string) (shows []Show, err error) {
+    queryVars := url.Values{}
+    queryVars.Set("query", title)
+    queryVars.Set("limit", "42")
+    resp, err := http.Get(movieDbApiUrl + "/search/titles?" + queryVars.Encode())
+    if err != nil { return }
+    return parseShows(resp.Body)
+}
+
+func GetShows(ids []string) (shows []Show, err error) {
+    queryVars := url.Values{"titleIds": ids}
+    resp, err := http.Get(movieDbApiUrl + "/titles:batchGet?" + queryVars.Encode())
+    if err != nil { return }
+    return parseShows(resp.Body)
+}
+
+func GetShowRating(db *gorm.DB, user, showId string) int8 {
+    var score int8
+    db.Model(&UserRating{}).
+        Order("updated_at desc").
+        Select("score").
+        Where("user_email = ? AND show_id = ?", user, showId).
+        Find(&score)
+    return score
+}
+
+func SetShowRating(db *gorm.DB, user, showId string, score int8) error {
+    rating := UserRating{
+        UserEmail: user,
+        ShowId: showId,
+        Score: score,
+    }
+    return db.Clauses(clause.OnConflict{UpdateAll: true}).Create(&rating).Error
+}
+
+func ShowsWithRating(db *gorm.DB, user string, score int8) (shows []Show, err error) {
+    var ids []string
+    err =
+        db.Model(&UserRating{}).
+        Select("show_id").
+        Where("user_email = ? AND score = ?", user, score).
+        Find(&ids).Error
+
+    if err != nil { return }
+    return GetShows(ids)
+}
+
+func SuggestedShows(db *gorm.DB, user string) (shows []Show, err error) {
+    rows, err := db.Raw(`
+        WITH own_ratings AS (
+            SELECT show_id, score
+            FROM user_ratings
+            WHERE user_email = ?
+        )
+        SELECT user_ratings.show_id
+        FROM user_ratings
+        INNER JOIN own_ratings
+        WHERE user_ratings.show_id NOT IN (SELECT show_id FROM own_ratings)
+        GROUP BY user_ratings.show_id
+        ORDER BY own_ratings.score * sum(user_ratings.score)
+        LIMIT 40
+    `, user, user).Rows()
+
+    if err != nil { return }
+    
+    var ids []string
+    for rows.Next() {
+        var id string
+        rows.Scan(&id)
+        ids = append(ids, id)
+    }
+    return GetShows(ids)
+}
