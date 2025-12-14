@@ -15,6 +15,7 @@
     <input type="text" name="email" placeholder="Email">
     <input type="password" name="passwd" placeholder="Password">
     <div class="buttons">
+      <div class="loading hidden"></div>
       <div class="button" onclick="signup()">Sign Up</div>
       <input type="submit" class="primary" value="Login">
     </div>
@@ -24,6 +25,7 @@
     
     let loginForm = document.getElementById("login")
     let msgBox = loginForm.getElementsByClassName("msg-box")[0]
+    let loading = loginForm.querySelector(".buttons > .loading")
 
     function showMsg(type, msg) {
       msgBox.innerHTML = msg
@@ -32,11 +34,13 @@
 
     function post(url, onSuccess) {
       event.preventDefault()
+      loading.classList.remove("hidden")
       fetch(url, {
         method: "POST",
         body: new FormData(loginForm)
       })
       .then(resp => {
+        loading.classList.add("hidden")
         switch (resp.status) {
         case 200:
           onSuccess()
