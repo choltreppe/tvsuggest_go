@@ -3,8 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" type="text/css" href="/static/style/base.css">
-  <link rel="stylesheet" type="text/css" href="/static/style/home.css">
+  <link rel="stylesheet" type="text/css" href="/static/style.css">
   <title>Show Suggest</title>
 </head>
 <body>
@@ -16,12 +15,10 @@
       <div class="good"   onclick="loadRating( 1)"></div>
       <div class="better" onclick="loadRating( 2)"></div>
     </div>
-    <input
-      type="text"
-      id="search"
-      placeholder="Search Movie or TV-Show"
-      onkeydown="if (event.keyCode == 13) loadContent('/search/' + encodeURIComponent(this.value))"
-    >
+    <form id="search" onsubmit="searchShow()">
+      <input type="text" placeholder="Search Movie or TV-Show">
+      <input type="submit" value="">
+    </form>
   </div></div>
 
   <div id="popup" class="hidden">
@@ -37,10 +34,12 @@
     let suggestionsButton = document.querySelector("#head-bar .suggestions")
     let ratingTabs = document.querySelector("#head-bar .rating").children
     let ratings = [-2, -1, 1, 2]
-    let searchBar = document.querySelector("#head-bar input")
+    let searchBar = document.querySelector('#search > input[type="text"]')
+    let searchSubmit = document.querySelector('#search > input[type="submit"]')
 
     function unselectMenu() {
       suggestionsButton.classList.remove("selected")
+      searchSubmit.classList.remove("selected")
       for (rating of ratingTabs) {
         rating.classList.remove("selected")
       }
@@ -56,6 +55,12 @@
     function loadSuggestions() {
       loadContent('/suggestions')
       suggestionsButton.classList.add("selected")
+    }
+
+    function searchShow() {
+      event.preventDefault()
+      loadContent('/search/' + encodeURIComponent(searchBar.value))
+      searchSubmit.classList.add("selected")
     }
 
     function loadRating(score) {

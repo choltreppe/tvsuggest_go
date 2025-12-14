@@ -3,35 +3,34 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" type="text/css" href="/static/style/base.css">
-  <link rel="stylesheet" type="text/css" href="/static/style/login.css">
+  <link rel="stylesheet" type="text/css" href="/static/style.css">
   <title>Show Suggest</title>
 </head>
 <body>
 
-  <form id="login" class="box" onsubmit="post('/login', '/')">
+  <form id="login" class="box" onsubmit="login()">
 
-    <div class="error hidden"></div>
+    <div class="msg-box hidden"></div>
 
     <input type="text" name="email" placeholder="Email">
     <input type="password" name="passwd" placeholder="Password">
     <div class="buttons">
-      <div class="button" onclick="post('/register', '/register/wait-to-confirm')">Register</div>
-      <input type="submit" class="primary" value="Sign In">
+      <div class="button" onclick="signup()">Sign Up</div>
+      <input type="submit" class="primary" value="Login">
     </div>
   </form>
 
   <script type="text/javascript">
     
     let loginForm = document.getElementById("login")
-    let errorBox = loginForm.getElementsByClassName("error")[0]
+    let msgBox = loginForm.getElementsByClassName("msg-box")[0]
 
-    function showError(msg) {
-      errorBox.innerHTML = msg
-      errorBox.classList.remove("hidden")
+    function showMsg(type, msg) {
+      msgBox.innerHTML = msg
+      msgBox.className = "msg-box " + type
     }
 
-    function post(url, successUrl) {
+    function post(url, onSuccess) {
       event.preventDefault()
       fetch(url, {
         method: "POST",
@@ -40,15 +39,27 @@
       .then(resp => {
         switch (resp.status) {
         case 200:
-          window.location.href = successUrl
+          onSuccess()
           break
         case 400:
-          resp.text().then(resp => showError(resp))
+          resp.text().then(resp => showMsg("error", resp))
           break
         case 500: case 502:
-          showError("Sorry something went wrong. Please try again later.")
+          showMsg("error", "Sorry something went wrong. Please try again later.")
           break
         }
+      })
+    }
+
+    function login() {
+      post("/login", () => {
+        window.location.href = "/"
+      })
+    }
+
+    function signup() {
+      post("/signup", () => {
+        showMsg("info", "Registration sent. You should recieve an email with a confirmation link.")
       })
     }
 

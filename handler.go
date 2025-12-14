@@ -1,10 +1,19 @@
 package main
 
 import (
+	"bytes"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
-	"html/template"
+	htemplate "html/template"
+	"log"
 	"net/http"
+	"net/mail"
+	"net/url"
+	"os"
+	"os/exec"
 	"strconv"
+	"text/template"
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
@@ -12,11 +21,18 @@ import (
 	"gorm.io/gorm"
 )
 
+func must[T any](v T, e error) T {
+    if e != nil {
+        panic(e)
+    }
+    return v
+}
+
+var store = sessions.NewCookieStore(must(os.ReadFile("sessionkey")))
+
 type Handler struct {
     DB *gorm.DB
 }
-
-var store = sessions.NewCookieStore([]byte("hDIs723jH(g&d$cdl37lo90)"))
 
 func handleWithUser(handler func(w http.ResponseWriter, r *http.Request, user string)) func(w http.ResponseWriter, r *http.Request) {
     return func(w http.ResponseWriter, r *http.Request) {
@@ -35,8 +51,9 @@ func handleWithUser(handler func(w http.ResponseWriter, r *http.Request, user st
 func (h *Handler) Routes() http.Handler {
     mux := mux.NewRouter()
     mux.HandleFunc("/", handleWithUser(h.Home))
-    mux.HandleFunc("/login", h.Login)
-    mux.HandleFunc("/register", h.RegisterUser).Methods("POST")
+    mux.HandleFunc("/login", h.Login).Methods("GET", "POST")
+    mux.HandleFunc("/signup", h.SignUp).Methods("POST")
+    mux.HandleFunc("/signup/confirm/{email}/{code}", h.ConfirmSignUp).Methods("GET")
     mux.HandleFunc("/search/{title}", handleWithUser(h.SearchShow)).Methods("GET")
     mux.HandleFunc("/rate/{id}/{score}", handleWithUser(h.RateShow)).Methods("POST")
     mux.HandleFunc("/my-ratings/{score}", handleWithUser(h.MyRatings)).Methods("GET")
@@ -44,24 +61,34 @@ func (h *Handler) Routes() http.Handler {
     return mux
 }
 
-func loadTemplate(tmpl ...string) *template.Template {
-    return template.Must(template.ParseFiles(tmpl...))
+var msgTmpl = must(htemplate.ParseFiles("templates/msg.tmpl"))
+
+func renderMsg(w http.ResponseWriter, title, msg string) {
+    type Msg struct {
+        Title, Msg string
+    }
+    msgTmpl.Execute(w, Msg{title, msg})
 }
 
-var homeTmpl = loadTemplate("templates/home.tmpl")
+var homeTmpl = must(htemplate.ParseFiles("templates/home.tmpl"))
 
 func (h *Handler) Home(w http.ResponseWriter, r *http.Request, user string) {
     homeTmpl.Execute(w, nil)
 }
 
-var loginTmpl = loadTemplate("templates/login.tmpl")
+var loginTmpl = must(htemplate.ParseFiles("templates/login.tmpl"))
 
 func getUserCredentials(w http.ResponseWriter, r *http.Request) (email, password string, ok bool) {
     r.ParseMultipartForm(256)
     emails := r.MultipartForm.Value["email"]
     passwords := r.MultipartForm.Value["passwd"]
     if len(emails) == 1 && len(passwords) == 1 {
-        return emails[0], passwords[0], true
+        if e, err := mail.ParseAddress(emails[0]); err == nil {
+            return e.Address, passwords[0], true
+        } else {
+            http.Error(w, "Invalid Email Address.", http.StatusBadRequest)
+            return
+        }
     } else {
         http.Error(w, "Malformed Request.", http.StatusBadRequest)
         return
@@ -86,35 +113,117 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
     }
 }
 
-func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
+func generateRandomCode(length int) (string, error) {
+    b := make([]byte, length)
+    _, err := rand.Read(b)
+    if err != nil {
+        return "", err
+    }
+    code := base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(b)
+    if len(code) > length {
+        code = code[:length]
+    }
+    return code, nil
+}
+
+const senderEmailAddress = "noreply@showsuggest.chol.foo"
+
+func sendMail(recipient, subject, msg string) error {
+    cmd := exec.Command("/usr/sbin/sendmail", "-t", "-i")
+    stdin, err := cmd.StdinPipe()
+    if err != nil {
+        return err
+    }
+    cmd.Stdout = os.Stdout
+    cmd.Stderr = os.Stderr
+    if err := cmd.Start(); err != nil {
+        return err
+    }
+    fmt.Fprintln(stdin, "From: ", senderEmailAddress)
+    fmt.Fprintln(stdin, "To: ", recipient)
+    fmt.Fprintln(stdin, "Subject: ", subject)
+    fmt.Fprintln(stdin)
+    fmt.Fprintln(stdin, msg)
+    stdin.Close()
+    return cmd.Wait()
+}
+
+var signupEmailTmpl = template.Must(template.ParseFiles("templates/signup_email.tmpl"))
+
+func (h *Handler) SignUp(w http.ResponseWriter, r *http.Request) {
     if email, password, ok := getUserCredentials(w, r); ok {
+        if len(password) < 5 {
+            http.Error(w, "Password too short.", http.StatusBadRequest)
+            return
+        }
         var userExists bool
         err := h.DB.Model(&User{}).Select("1").Where("email = ?", email).Limit(1).Find(&userExists).Error
         if err != nil {
             reportServerError(w, err)
-        } else if userExists {
-            http.Error(w, "A user with this email is already registered.", http.StatusBadRequest)
-        } else if hash, err := bcrypt.GenerateFromPassword([]byte(password), 0); err == nil {
-            result := h.DB.Create(&User{Email: email, PwHash: hash})
-            if result.Error != nil {
-                w.WriteHeader(http.StatusOK)
-            } else {
-                reportServerError(w, err)
-            }
-        } else {
-            http.Error(w, "Password too long.", http.StatusBadRequest)
+            return
         }
+        if userExists {
+            http.Error(w, "A user with this email is already registered.", http.StatusBadRequest)
+            return
+        }
+        hash, err := bcrypt.GenerateFromPassword([]byte(password), 0)
+        if err != nil {
+            http.Error(w, "Password too long.", http.StatusBadRequest)
+            return
+        }
+        code, err := generateRandomCode(32)
+        if err != nil {
+            reportServerError(w, err)
+            return
+        }
+        result := h.DB.Create(&User{
+            Email: email,
+            PwHash: hash,
+            ConfirmCode: code,
+            IsConfirmed: false,
+        })
+        if err = result.Error; err != nil {
+            reportServerError(w, err)
+            return
+        }
+        var buf bytes.Buffer
+        type confirmInfo struct { Email, Code string }
+        signupEmailTmpl.Execute(&buf, confirmInfo{email, url.QueryEscape(code)})
+        if err = sendMail(email, "ShowSuggest Registration", buf.String()); err != nil {
+            reportServerError(w, err)
+            return
+        }
+        w.WriteHeader(http.StatusOK)
+    }
+}
+
+func (h *Handler) ConfirmSignUp(w http.ResponseWriter, r *http.Request) {
+    pathParams := mux.Vars(r)
+    email, code := pathParams["email"], pathParams["code"]
+    var user User
+    err := h.DB.Where("email = ?", email).Find(&user).Error
+    if err != nil {
+        log.Println(err)
+        renderMsg(w, "Error", "There was an error. Maybe the registration request expired. Please try to sign up again.")
+        return
+    }
+    if user.ConfirmCode != code {
+        renderMsg(w, "Wrong Code", "The confirmation code is incorrect.")
+    } else {
+        user.IsConfirmed = true
+        h.DB.Save(&user)
+        renderMsg(w, "Registration Completed", "You are now registered and can log in.")
     }
 }
 
 
 func reportServerError(w http.ResponseWriter, err error) {
-    fmt.Println(err)
+    log.Println(err)
     http.Error(w, "Sorry, something went wrong.", http.StatusInternalServerError)
 }
 
 
-var showTmpl = loadTemplate("templates/show.tmpl")
+var showTmpl = must(htemplate.ParseFiles("templates/show.tmpl"))
 
 func renderShow(w http.ResponseWriter, show Show, rating int8) {
     type RatingButton struct {

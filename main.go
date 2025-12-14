@@ -10,5 +10,5 @@ func main() {
   h := &Handler{DB: db}
   http.Handle("/", h.Routes())
   http.Handle("/static/", http.FileServer(http.Dir(".")))
-  http.ListenAndServe(":8080", nil)
+  http.ListenAndServe(":8090", nil)
 }

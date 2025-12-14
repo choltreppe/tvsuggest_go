@@ -1,3 +1,5 @@
+github.com/golang-must/must v1.0.0 h1:CRVPmPY30XORfNfYF5sHWB/6DFao1f580tliVUupzwc=
+github.com/golang-must/must v1.0.0/go.mod h1:+Li9TJt2jPOdGvIbcwqNSSDxjmA6PWs6QWxuqGDO1HQ=
 github.com/gorilla/mux v1.8.1 h1:TuBL49tXwgrFYWhqrNgrUNEY92u81SPhu7sTdzQEiWY=
 github.com/gorilla/mux v1.8.1/go.mod h1:AKf9I4AEqPTmMytcMc0KkNouC66V3BtZ4qD5fmWSiMQ=
 github.com/gorilla/securecookie v1.1.2 h1:YCIWL56dvtr73r6715mJs5ZvhtnY73hBvEF8kXD8ePA=

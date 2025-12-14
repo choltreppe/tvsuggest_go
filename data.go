@@ -32,6 +32,9 @@ type User struct {
     Email string `gorm:"primaryKey"`
     PwHash []byte
     Ratings []UserRating `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+
+    ConfirmCode string
+    IsConfirmed bool
 }
 
 type UserRating struct {
@@ -69,9 +72,10 @@ func MigrateDB(db *gorm.DB) {
     db.AutoMigrate(&User{}, &UserRating{}, /*&ShowRelation{}*/)
 }
 
+
 func VerifyUser(db *gorm.DB, email, password string) bool {
     var user User
-    err := db.Where("email = ?", email).First(&user).Error
+    err := db.Where("email = ? AND is_confirmed", email).First(&user).Error
     return err == nil && bcrypt.CompareHashAndPassword(user.PwHash, []byte(password)) == nil
 }
 
@@ -151,7 +155,7 @@ func SuggestedShows(db *gorm.DB, user string) (shows []Show, err error) {
         GROUP BY user_ratings.show_id
         ORDER BY own_ratings.score * sum(user_ratings.score)
         LIMIT 40
-    `, user, user).Rows()
+    `, user).Rows()
 
     if err != nil { return }
     
