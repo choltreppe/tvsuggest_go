@@ -126,7 +126,7 @@ func generateRandomCode(length int) (string, error) {
     return code, nil
 }
 
-const senderEmailAddress = "noreply@showsuggest.chol.foo"
+const senderEmailAddress = "noreply@tvsuggest.chol.foo"
 
 func sendMail(recipient, subject, msg string) error {
     cmd := exec.Command("/usr/sbin/sendmail", "-t", "-i")
@@ -189,7 +189,7 @@ func (h *Handler) SignUp(w http.ResponseWriter, r *http.Request) {
         var buf bytes.Buffer
         type confirmInfo struct { Email, Code string }
         signupEmailTmpl.Execute(&buf, confirmInfo{email, url.QueryEscape(code)})
-        if err = sendMail(email, "ShowSuggest Registration", buf.String()); err != nil {
+        if err = sendMail(email, "TV-Suggest Registration", buf.String()); err != nil {
             reportServerError(w, err)
             return
         }

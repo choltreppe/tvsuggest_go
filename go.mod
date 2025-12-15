@@ -1,4 +1,4 @@
-module showsuggest
+module tvsuggest
 
 go 1.25.5
 

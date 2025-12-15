@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" type="text/css" href="/static/style.css">
-  <title>Show Suggest</title>
+  <title>TV Suggest</title>
 </head>
 <body>
   <div id="head-bar"><div class="box">
@@ -22,11 +22,6 @@
   </div></div>
   
   <button id="logout" onclick="logout()"></button>
-
-  <div id="popup" class="hidden">
-    <div class="box"></div>
-    <div class="backdrop" onclick="closePopup()"></div>
-  </div>
   
   <div id="content"></div>
 
@@ -83,18 +78,6 @@
     function logout() {
       document.cookie = "session=;expires=Thu, 01 Jan 1970 00:00:01 GMT"
       window.location.href = "/login"
-    }
-
-    let popupContainer = document.getElementById("popup")
-    let popupBox = popupContainer.getElementsByClassName("box")[0]
-
-    function popupShow(id, title, imgUrl) {
-      popupBox.innerHTML = title
-      popupContainer.classList.remove("hidden")
-    }
-
-    function closePopup() {
-      popupContainer.classList.add("hidden")
     }
 
   </script>
