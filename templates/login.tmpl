@@ -1,18 +1,10 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" type="text/css" href="/static/style.css">
-  <title>TV Suggest</title>
-</head>
-<body>
+{{define "body"}}
 
   <form id="login" class="box" onsubmit="login()">
 
     <div class="msg-box hidden"></div>
 
-    <input type="text" name="email" placeholder="Email">
+    <input type="email" name="email" placeholder="Email">
     <input type="password" name="passwd" placeholder="Password">
     <div class="buttons">
       <div class="loading hidden"></div>
@@ -69,5 +61,4 @@
 
   </script>
 
-</body>
-</html>
+{{end}}

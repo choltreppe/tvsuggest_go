@@ -8,7 +8,7 @@
     {{range .RatingButtons}}
       <div
         class="{{.Name}} {{if .Selected}}selected{{end}}"
-        onclick="rateShow('{{$id}}', {{.Score}})"
+        onclick="rateShow(this, '{{$id}}', {{.Score}})"
       ></div>
     {{end}}
   </div>

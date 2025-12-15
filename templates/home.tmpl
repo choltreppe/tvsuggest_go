@@ -1,21 +1,13 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" type="text/css" href="/static/style.css">
-  <title>TV Suggest</title>
-</head>
-<body>
+{{define "body"}}
+
   <div id="head-bar"><div class="box">
     <div class="suggestions" onclick="loadSuggestions()">Suggestions</div>
     <div class="rating">
-      <div class="worse"  onclick="loadRating(-2)"></div>
-      <div class="bad"    onclick="loadRating(-1)"></div>
-      <div class="good"   onclick="loadRating( 1)"></div>
-      <div class="better" onclick="loadRating( 2)"></div>
+      <div class="bad"    onclick="loadRating(this, -1)"></div>
+      <div class="good"   onclick="loadRating(this,  1)"></div>
+      <div class="better" onclick="loadRating(this,  2)"></div>
     </div>
-    <form id="search" onsubmit="searchShow()">
+    <form class="search" onsubmit="searchShow()">
       <input type="text" placeholder="Search Movie or TV-Show">
       <input type="submit" value="">
     </form>
@@ -30,9 +22,8 @@
     let content = document.getElementById("content")
     let suggestionsButton = document.querySelector("#head-bar .suggestions")
     let ratingTabs = document.querySelector("#head-bar .rating").children
-    let ratings = [-2, -1, 1, 2]
-    let searchBar = document.querySelector('#search > input[type="text"]')
-    let searchSubmit = document.querySelector('#search > input[type="submit"]')
+    let searchBar = document.querySelector('#head-bar .search > input[type="text"]')
+    let searchSubmit = document.querySelector('#head-bar .search > input[type="submit"]')
 
     function unselectMenu() {
       suggestionsButton.classList.remove("selected")
@@ -61,17 +52,25 @@
       searchSubmit.classList.add("selected")
     }
 
-    function loadRating(score) {
+    function loadRating(elem, score) {
       searchBar.value = ""
       loadContent(`/my-ratings/${score}`)
-      ratingTabs[ratings.indexOf(score)].classList.add("selected")
+      elem.classList.add("selected")
     }
 
-    function rateShow(id, score) {
+    function rateShow(elem, id, score) {
       fetch(`/rate/${encodeURIComponent(id)}/${score}`, {method: "POST"})
       .then(resp => {
-        if (resp.status == 200)
-          loadRating(score)
+        if (resp.status == 200) {
+          if (searchSubmit.classList.contains("selected")) {
+            for (rating of elem.parentNode.children) {
+              rating.classList.remove("selected")
+            }
+            elem.classList.add("selected")
+          } else {
+            elem.parentNode.parentNode.remove()
+          }
+        }
       })
     }
 
@@ -82,5 +81,4 @@
 
   </script>
 
-</body>
-</html>
+{{end}}

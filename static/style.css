@@ -16,14 +16,19 @@
   --border-radius-elem: 10px;
 
   --font-size: 18px;
+
+  --footer-height: 60px;
 }
 
 body {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-height: 80vh;
+  min-height: 100vh;
   margin: 0;
+  padding-bottom: var(--footer-height);
+  box-sizing: border-box;
   background-color: var(--color-bg);
   color: var(--color-fg);
   font-family: Verdana, sans serif;
@@ -37,7 +42,7 @@ body {
 input {
   font-size: var(--font-size);
 
-  &[type="text"], &[type="password"] {
+  &[type="text"], &[type="password"], &[type="email"] {
     padding: 9px 12px;
     border: none;
     border-radius: var(--border-radius-elem);
@@ -201,26 +206,26 @@ button, input[type="submit"], .button {
       height: 36px;
     }
   }
-}
 
-#search {
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
+  .search {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
 
-  > input[type="text"] {
-    width: 260px;
-    padding-right: 20px;
-  }
+    > input[type="text"] {
+      width: 260px;
+      padding-right: 20px;
+    }
 
-  > input[type="submit"] {
-    width: 48px;
-    margin-left: -15px;
-    background: var(--color-bg-lighter) url(/static/img/loupe.svg) center no-repeat;
-    background-size: contain;
-    &.selected {
-      background-color: black;
-      filter: invert(1);
+    > input[type="submit"] {
+      width: 48px;
+      margin-left: -15px;
+      background: var(--color-bg-lighter) url(/static/img/loupe.svg) center no-repeat;
+      background-size: contain;
+      &.selected {
+        background-color: black;
+        filter: invert(1);
+      }
     }
   }
 }
@@ -243,6 +248,7 @@ button, input[type="submit"], .button {
 #content {
   margin: 34px;
   margin-top: 160px;
+  margin-bottom: 80px;
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -374,12 +380,30 @@ button, input[type="submit"], .button {
   }
 }
 
+#footer {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: var(--footer-height);
+  background-color: var(--color-bg-light);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+
+  > a {
+    color: var(--color-fg-dim);
+    font-size: 13px;
+    text-decoration: none;
+    margin: 0 20px;
+  }
+}
+
 
 @media (max-width: 900px) {
   #head-bar > .box {
     align-self: flex-start;
     border-bottom-left-radius: 0;
-    > #search > input[type="text"] {
+    > .search > input[type="text"] {
       width: 186px;
     }
   }
@@ -397,7 +421,7 @@ button, input[type="submit"], .button {
 
     > .suggestions { grid-area: suggestions }
     > .rating      { grid-area: rating }
-    > #search {
+    > .search {
       grid-area: search;
       width: 100%;
       > input[type="text"] {

@@ -39,7 +39,7 @@ type User struct {
 
 type UserRating struct {
     UserEmail, ShowId string `gorm:"primaryKey"`
-    Score int8 `gorm:"check: score >= -2 AND score <= 2"`
+    Score int8 `gorm:"check: score >= -1 AND score <= 2"`
     UpdatedAt time.Time
 }
 

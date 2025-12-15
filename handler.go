@@ -61,7 +61,7 @@ func (h *Handler) Routes() http.Handler {
     return mux
 }
 
-var msgTmpl = must(htemplate.ParseFiles("templates/msg.tmpl"))
+var msgTmpl = must(htemplate.ParseFiles("templates/_base.tmpl", "templates/msg.tmpl"))
 
 func renderMsg(w http.ResponseWriter, title, msg string) {
     type Msg struct {
@@ -70,13 +70,13 @@ func renderMsg(w http.ResponseWriter, title, msg string) {
     msgTmpl.Execute(w, Msg{title, msg})
 }
 
-var homeTmpl = must(htemplate.ParseFiles("templates/home.tmpl"))
+var homeTmpl = must(htemplate.ParseFiles("templates/_base.tmpl", "templates/home.tmpl"))
 
 func (h *Handler) Home(w http.ResponseWriter, r *http.Request, user string) {
     homeTmpl.Execute(w, nil)
 }
 
-var loginTmpl = must(htemplate.ParseFiles("templates/login.tmpl"))
+var loginTmpl = must(htemplate.ParseFiles("templates/_base.tmpl", "templates/login.tmpl"))
 
 func getUserCredentials(w http.ResponseWriter, r *http.Request) (email, password string, ok bool) {
     r.ParseMultipartForm(256)
@@ -233,15 +233,14 @@ func renderShow(w http.ResponseWriter, show Show, rating int8) {
     }
     type ShowExt struct {
         Show
-        RatingButtons [4]RatingButton
+        RatingButtons [3]RatingButton
     }
     rb := func(name string, score int8) RatingButton {
         return RatingButton{name, score, score == rating}
     }
     showTmpl.Execute(w, ShowExt{
         Show: show,
-        RatingButtons: [4]RatingButton{
-            rb("worse" , -2),
+        RatingButtons: [3]RatingButton{
             rb("bad"   , -1),
             rb("good"  ,  1),
             rb("better",  2),
