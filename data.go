@@ -82,9 +82,14 @@ func VerifyUser(db *gorm.DB, email, password string) bool {
 
 const movieDbApiUrl = "https://api.imdbapi.dev"
 
-func parseShows(r io.ReadCloser) (shows []Show, err error) {
-    body, err := io.ReadAll(r)
-    r.Close()
+func FindShows(title string) (shows []Show, err error) {
+    queryVars := url.Values{}
+    queryVars.Set("query", title)
+    queryVars.Set("limit", "42")
+    resp, err := http.Get(movieDbApiUrl + "/search/titles?" + queryVars.Encode())
+    if err != nil { return }
+    body, err := io.ReadAll(resp.Body)
+    resp.Body.Close()
     if err != nil { return }
     type ShowList struct {
         Titles []Show `json:"titles"`
@@ -92,22 +97,6 @@ func parseShows(r io.ReadCloser) (shows []Show, err error) {
     var showList ShowList
     if err = json.Unmarshal(body, &showList); err != nil { return }
     return showList.Titles, nil
-}
-
-func FindShows(title string) (shows []Show, err error) {
-    queryVars := url.Values{}
-    queryVars.Set("query", title)
-    queryVars.Set("limit", "42")
-    resp, err := http.Get(movieDbApiUrl + "/search/titles?" + queryVars.Encode())
-    if err != nil { return }
-    return parseShows(resp.Body)
-}
-
-func GetShows(ids []string) (shows []Show, err error) {
-    queryVars := url.Values{"titleIds": ids}
-    resp, err := http.Get(movieDbApiUrl + "/titles:batchGet?" + queryVars.Encode())
-    if err != nil { return }
-    return parseShows(resp.Body)
 }
 
 func GetShowRating(db *gorm.DB, user, showId string) int8 {
@@ -129,16 +118,30 @@ func SetShowRating(db *gorm.DB, user, showId string, score int8) error {
     return db.Clauses(clause.OnConflict{UpdateAll: true}).Create(&rating).Error
 }
 
+func getShow(id string) (show Show, err error) {
+    resp, err := http.Get(movieDbApiUrl + "/titles/" + id)
+    if err != nil { return }
+    body, err := io.ReadAll(resp.Body)
+    resp.Body.Close()
+    if err != nil { return }
+    if err = json.Unmarshal(body, &show); err != nil { return }
+    return
+}
+
 func ShowsWithRating(db *gorm.DB, user string, score int8) (shows []Show, err error) {
-    var ids []string
-    err =
-        db.Model(&UserRating{}).
-        Select("show_id").
-        Where("user_email = ? AND score = ?", user, score).
-        Find(&ids).Error
+    rows, err := db.Raw("SELECT show_id FROM user_ratings WHERE user_email = ? AND score = ?", user, score).Rows()
 
     if err != nil { return }
-    return GetShows(ids)
+    
+    shows = []Show{}
+    for rows.Next() {
+        var id string
+        rows.Scan(&id)
+        show, err := getShow(id)
+        if err != nil { return nil, err}
+        shows = append(shows, show)
+    }
+    return
 }
 
 func SuggestedShows(db *gorm.DB, user string) (shows []Show, err error) {
@@ -159,11 +162,13 @@ func SuggestedShows(db *gorm.DB, user string) (shows []Show, err error) {
 
     if err != nil { return }
     
-    var ids []string
+    shows = []Show{}
     for rows.Next() {
         var id string
         rows.Scan(&id)
-        ids = append(ids, id)
+        show, err := getShow(id)
+        if err != nil { return nil, err}
+        shows = append(shows, show)
     }
-    return GetShows(ids)
+    return
 }
