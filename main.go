@@ -5,9 +5,7 @@ import (
 )
 
 func main() {
-  db := InitDB()
-  MigrateDB(db)
-  h := &Handler{DB: db}
+  h := newHandler()
   http.Handle("/", h.Routes())
   http.Handle("/static/", http.FileServer(http.Dir(".")))
   http.ListenAndServe(":8090", nil)

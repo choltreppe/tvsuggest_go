@@ -20,6 +20,7 @@ import (
 	"github.com/gorilla/sessions"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+    "gorm.io/driver/mysql"
 )
 
 func must[T any](v T, e error) T {
@@ -29,16 +30,28 @@ func must[T any](v T, e error) T {
     return v
 }
 
-var store = sessions.NewCookieStore(must(os.ReadFile("sessionkey")))
-
 type Handler struct {
-    DB *gorm.DB
+    db *gorm.DB
+    cookieStore *sessions.CookieStore
+}
+
+func newHandler() Handler {
+    db, err := gorm.Open(mysql.Open(os.Getenv("DB_DSN")), &gorm.Config{})
+    if err != nil {
+        panic("Failed to connect database")
+    }
+    db.AutoMigrate(&User{}, &UserRating{}, /*&ShowRelation{}*/)
+    
+    return Handler{
+        db: db,
+        cookieStore: sessions.NewCookieStore([]byte(os.Getenv("COOKIE_SECRET"))),
+    }
 }
 
 func (h *Handler) Routes() http.Handler {
     mux := mux.NewRouter()
 
-    mux.HandleFunc("/", handleWithUser(h.Home))
+    mux.HandleFunc("/", h.withUser(h.Home))
 
     mux.HandleFunc("/login", h.Login).Methods("GET", "POST")
     mux.HandleFunc("/signup", h.SignUp).Methods("GET", "POST")
@@ -46,17 +59,17 @@ func (h *Handler) Routes() http.Handler {
     mux.HandleFunc("/pwreset/request", h.RequestPwReset).Methods("GET", "POST")
     mux.HandleFunc("/pwreset/{email}/{code}", h.PwReset).Methods("GET", "POST")
 
-    mux.HandleFunc("/search/{title}", handleWithUser(h.SearchShow)).Methods("GET")
-    mux.HandleFunc("/rate/{id}/{score}", handleWithUser(h.RateShow)).Methods("POST")
-    mux.HandleFunc("/my-ratings/{score}", handleWithUser(h.MyRatings)).Methods("GET")
-    mux.HandleFunc("/suggestions", handleWithUser(h.Suggestions)).Methods("GET")
+    mux.HandleFunc("/search/{title}", h.withUser(h.SearchShow)).Methods("GET")
+    mux.HandleFunc("/rate/{id}/{score}", h.withUser(h.RateShow)).Methods("POST")
+    mux.HandleFunc("/my-ratings/{score}", h.withUser(h.MyRatings)).Methods("GET")
+    mux.HandleFunc("/suggestions", h.withUser(h.Suggestions)).Methods("GET")
 
     return mux
 }
 
-func handleWithUser(handler func(w http.ResponseWriter, r *http.Request, user string)) func(http.ResponseWriter, *http.Request) {
+func (h *Handler) withUser(handler func(w http.ResponseWriter, r *http.Request, user string)) func(http.ResponseWriter, *http.Request) {
     return func(w http.ResponseWriter, r *http.Request) {
-        session, err := store.Get(r, "session")
+        session, err := h.cookieStore.Get(r, "session")
         if err != nil {
             reportServerError(w, err)
         }
@@ -68,8 +81,8 @@ func handleWithUser(handler func(w http.ResponseWriter, r *http.Request, user st
     }
 }
 
-func setUserLoggedIn(w http.ResponseWriter, r *http.Request, email string) {
-    session, _ := store.Get(r, "session")
+func (h *Handler) setUserLoggedIn(w http.ResponseWriter, r *http.Request, email string) {
+    session, _ := h.cookieStore.Get(r, "session")
     session.Values["user"] = email
     session.Save(r, w)
 }
@@ -117,8 +130,8 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
     switch r.Method {
     case http.MethodPost:
         if email, password, ok := getUserCredentials(w, r); ok {
-            if VerifyUser(h.DB, email, password) {
-                setUserLoggedIn(w, r, email)
+            if VerifyUser(h.db, email, password) {
+                h.setUserLoggedIn(w, r, email)
                 w.WriteHeader(http.StatusOK)
             } else {
                 http.Error(w, "Incorrect credentials. Either the email or the password is wrong.", http.StatusBadRequest)
@@ -199,7 +212,7 @@ func (h *Handler) SignUp(w http.ResponseWriter, r *http.Request) {
                 http.Error(w, "Password too short.", http.StatusBadRequest)
                 return
             }
-            userExists, err := userExists(h.DB, email)
+            userExists, err := userExists(h.db, email)
             if err != nil {
                 reportServerError(w, err)
                 return
@@ -218,7 +231,7 @@ func (h *Handler) SignUp(w http.ResponseWriter, r *http.Request) {
                 reportServerError(w, err)
                 return
             }
-            result := h.DB.Create(&User{
+            result := h.db.Create(&User{
                 Email: email,
                 PwHash: hash,
                 ConfirmCode: code,
@@ -243,7 +256,7 @@ func (h *Handler) ConfirmSignUp(w http.ResponseWriter, r *http.Request) {
     pathParams := mux.Vars(r)
     email, code := pathParams["email"], pathParams["code"]
     var user User
-    err := h.DB.Where("email = ?", email).Find(&user).Error
+    err := h.db.Where("email = ?", email).Find(&user).Error
     if errors.Is(err, gorm.ErrRecordNotFound) {
         renderMsg(w, "Error", "There is no user with this email address.")
     } else if err != nil {
@@ -253,7 +266,7 @@ func (h *Handler) ConfirmSignUp(w http.ResponseWriter, r *http.Request) {
         renderMsg(w, "Wrong Code", "The confirmation code is incorrect.")
     } else {
         user.IsConfirmed = true
-        h.DB.Save(&user)
+        h.db.Save(&user)
         renderMsg(w, "Registration Completed", "You are now registered and can log in.")
     }
 }
@@ -274,7 +287,7 @@ func (h *Handler) RequestPwReset(w http.ResponseWriter, r *http.Request) {
             return
         }
         email := emails[0]
-        userExists, err := userExists(h.DB, email)
+        userExists, err := userExists(h.db, email)
         if err != nil {
             reportServerError(w, err)
             return
@@ -287,7 +300,7 @@ func (h *Handler) RequestPwReset(w http.ResponseWriter, r *http.Request) {
                 reportServerError(w, err)
                 return
             }
-            err = h.DB.Exec("UPDATE users SET confirm_code = ? WHERE email = ?", code, email).Error
+            err = h.db.Exec("UPDATE users SET confirm_code = ? WHERE email = ?", code, email).Error
             if err != nil {
                 reportServerError(w, err)
                 return
@@ -323,7 +336,7 @@ func (h *Handler) PwReset(w http.ResponseWriter, r *http.Request) {
         password := passwords[0]
 
         var user User
-        err := h.DB.Where("email = ?", email).Find(&user).Error
+        err := h.db.Where("email = ?", email).Find(&user).Error
         if errors.Is(err, gorm.ErrRecordNotFound) {
             http.Error(w, "There is no user with this email address.", http.StatusBadRequest)
         } else if err != nil {
@@ -334,8 +347,8 @@ func (h *Handler) PwReset(w http.ResponseWriter, r *http.Request) {
             reportServerError(w, err)
         } else {
             user.PwHash = hash
-            h.DB.Save(&user)
-            setUserLoggedIn(w, r, user.Email)
+            h.db.Save(&user)
+            h.setUserLoggedIn(w, r, user.Email)
             renderMsg(w, "Registration Completed", "You are now registered and can log in.")
         }   
     }
@@ -374,7 +387,7 @@ func (h *Handler) SearchShow(w http.ResponseWriter, r *http.Request, user string
         return
     }
     for _, show := range shows {
-        renderShow(w, show, GetShowRating(h.DB, user, show.ID))
+        renderShow(w, show, GetShowRating(h.db, user, show.ID))
     }
 }
 
@@ -385,7 +398,7 @@ func (h *Handler) RateShow(w http.ResponseWriter, r *http.Request, user string) 
         http.Error(w, "Invalid rating.", http.StatusBadRequest)
         return
     }
-    err = SetShowRating(h.DB, user, pathVars["id"], int8(score))
+    err = SetShowRating(h.db, user, pathVars["id"], int8(score))
     if err != nil {
         reportServerError(w, err)
         return
@@ -399,7 +412,7 @@ func (h *Handler) MyRatings(w http.ResponseWriter, r *http.Request, user string)
         return
     }
     score := int8(scoreBig)
-    shows, err := ShowsWithRating(h.DB, user, score)
+    shows, err := ShowsWithRating(h.db, user, score)
     if err != nil {
         reportServerError(w, err)
         return
@@ -410,7 +423,7 @@ func (h *Handler) MyRatings(w http.ResponseWriter, r *http.Request, user string)
 }
 
 func (h *Handler) Suggestions(w http.ResponseWriter, r *http.Request, user string) {
-    shows, err := SuggestedShows(h.DB, user)
+    shows, err := SuggestedShows(h.db, user)
     if err != nil {
         reportServerError(w, err)
         return

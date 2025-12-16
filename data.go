@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -57,19 +56,6 @@ type Show struct {
         Url string `json:"url"`
     } `json:"primaryImage"`
     StartYear IntString `json:"startYear"`
-}
-
-
-func InitDB() *gorm.DB {
-    db, err := gorm.Open(sqlite.Open("data.db"), &gorm.Config{})
-    if err != nil {
-        panic("Failed to connect database")
-    }
-    return db
-}
-
-func MigrateDB(db *gorm.DB) {
-    db.AutoMigrate(&User{}, &UserRating{}, /*&ShowRelation{}*/)
 }
 
 
