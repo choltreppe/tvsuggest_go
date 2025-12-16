@@ -1,6 +1,6 @@
 {{define "body"}}
 
-  <form class="box" onsubmit="post(this, '/')">
+  <form class="box" onsubmit="post(this)">
 
     <div class="msg-box hidden"></div>
 
@@ -8,10 +8,8 @@
     <input type="password" name="passwd" placeholder="Password">
     <div class="buttons">
       <div class="loading hidden"></div>
-      <a class="button" href="/signup">Sign Up</a>
-      <input type="submit" class="primary" value="Login">
+      <input type="submit" class="primary" value="Sign Up">
     </div>
-    <a id="forgot-password" href="/pwreset/request">forgot password?</a>
   </form>
 
 {{end}}

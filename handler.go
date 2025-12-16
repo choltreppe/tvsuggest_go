@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	htemplate "html/template"
 	"log"
@@ -34,7 +35,26 @@ type Handler struct {
     DB *gorm.DB
 }
 
-func handleWithUser(handler func(w http.ResponseWriter, r *http.Request, user string)) func(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Routes() http.Handler {
+    mux := mux.NewRouter()
+
+    mux.HandleFunc("/", handleWithUser(h.Home))
+
+    mux.HandleFunc("/login", h.Login).Methods("GET", "POST")
+    mux.HandleFunc("/signup", h.SignUp).Methods("GET", "POST")
+    mux.HandleFunc("/signup/confirm/{email}/{code}", h.ConfirmSignUp).Methods("GET")
+    mux.HandleFunc("/pwreset/request", h.RequestPwReset).Methods("GET", "POST")
+    mux.HandleFunc("/pwreset/{email}/{code}", h.PwReset).Methods("GET", "POST")
+
+    mux.HandleFunc("/search/{title}", handleWithUser(h.SearchShow)).Methods("GET")
+    mux.HandleFunc("/rate/{id}/{score}", handleWithUser(h.RateShow)).Methods("POST")
+    mux.HandleFunc("/my-ratings/{score}", handleWithUser(h.MyRatings)).Methods("GET")
+    mux.HandleFunc("/suggestions", handleWithUser(h.Suggestions)).Methods("GET")
+
+    return mux
+}
+
+func handleWithUser(handler func(w http.ResponseWriter, r *http.Request, user string)) func(http.ResponseWriter, *http.Request) {
     return func(w http.ResponseWriter, r *http.Request) {
         session, err := store.Get(r, "session")
         if err != nil {
@@ -48,17 +68,15 @@ func handleWithUser(handler func(w http.ResponseWriter, r *http.Request, user st
     }
 }
 
-func (h *Handler) Routes() http.Handler {
-    mux := mux.NewRouter()
-    mux.HandleFunc("/", handleWithUser(h.Home))
-    mux.HandleFunc("/login", h.Login).Methods("GET", "POST")
-    mux.HandleFunc("/signup", h.SignUp).Methods("POST")
-    mux.HandleFunc("/signup/confirm/{email}/{code}", h.ConfirmSignUp).Methods("GET")
-    mux.HandleFunc("/search/{title}", handleWithUser(h.SearchShow)).Methods("GET")
-    mux.HandleFunc("/rate/{id}/{score}", handleWithUser(h.RateShow)).Methods("POST")
-    mux.HandleFunc("/my-ratings/{score}", handleWithUser(h.MyRatings)).Methods("GET")
-    mux.HandleFunc("/suggestions", handleWithUser(h.Suggestions)).Methods("GET")
-    return mux
+func setUserLoggedIn(w http.ResponseWriter, r *http.Request, email string) {
+    session, _ := store.Get(r, "session")
+    session.Values["user"] = email
+    session.Save(r, w)
+}
+
+func reportServerError(w http.ResponseWriter, err error) {
+    log.Println(err)
+    http.Error(w, "Sorry, something went wrong.", http.StatusInternalServerError)
 }
 
 var msgTmpl = must(htemplate.ParseFiles("templates/_base.tmpl", "templates/msg.tmpl"))
@@ -98,22 +116,21 @@ func getUserCredentials(w http.ResponseWriter, r *http.Request) (email, password
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
     switch r.Method {
     case http.MethodPost:
-        if email, password, ok := getUserCredentials(w, r); ok && VerifyUser(h.DB, email, password) {
-            session, _ := store.Get(r, "session")
-            session.Values["user"] = email
-            session.Save(r, w)
-            w.WriteHeader(http.StatusOK)
-        } else {
-            http.Error(w, "Incorrect credentials. Either the email or the password is wrong.", http.StatusBadRequest)
+        if email, password, ok := getUserCredentials(w, r); ok {
+            if VerifyUser(h.DB, email, password) {
+                setUserLoggedIn(w, r, email)
+                w.WriteHeader(http.StatusOK)
+            } else {
+                http.Error(w, "Incorrect credentials. Either the email or the password is wrong.", http.StatusBadRequest)
+            }
         }
     case http.MethodGet:
         loginTmpl.Execute(w, nil)
-    default:
-        http.NotFound(w, r)
     }
 }
 
-func generateRandomCode(length int) (string, error) {
+func generateRandomCode() (string, error) {
+    const length = 32
     b := make([]byte, length)
     _, err := rand.Read(b)
     if err != nil {
@@ -126,74 +143,99 @@ func generateRandomCode(length int) (string, error) {
     return code, nil
 }
 
-const senderEmailAddress = "noreply@tvsuggest.chol.foo"
+const senderEmailAddress = "TV Suggest <noreply@tvsuggest.chol.foo>"
 
 func sendMail(recipient, subject, msg string) error {
-    cmd := exec.Command("/usr/sbin/sendmail", "-t", "-i")
-    stdin, err := cmd.StdinPipe()
-    if err != nil {
-        return err
+    if _, err := os.Stat("/usr/sbin/sendmail"); errors.Is(err, os.ErrNotExist) {
+        fmt.Println("To: ", recipient)
+        fmt.Println("Subject: ", subject)
+        fmt.Println(msg)
+        return nil
+    
+    } else {
+        cmd := exec.Command("/usr/sbin/sendmail", "-t", "-i")
+        stdin, err := cmd.StdinPipe()
+        if err != nil {
+            return err
+        }
+        cmd.Stdout = os.Stdout
+        cmd.Stderr = os.Stderr
+        if err := cmd.Start(); err != nil {
+            return err
+        }
+        fmt.Fprintln(stdin, "From: ", senderEmailAddress)
+        fmt.Fprintln(stdin, "To: ", recipient)
+        fmt.Fprintln(stdin, "Subject: ", subject)
+        fmt.Fprintln(stdin)
+        fmt.Fprintln(stdin, msg)
+        stdin.Close()
+        return cmd.Wait()
     }
-    cmd.Stdout = os.Stdout
-    cmd.Stderr = os.Stderr
-    if err := cmd.Start(); err != nil {
-        return err
-    }
-    fmt.Fprintln(stdin, "From: ", senderEmailAddress)
-    fmt.Fprintln(stdin, "To: ", recipient)
-    fmt.Fprintln(stdin, "Subject: ", subject)
-    fmt.Fprintln(stdin)
-    fmt.Fprintln(stdin, msg)
-    stdin.Close()
-    return cmd.Wait()
 }
 
-var signupEmailTmpl = template.Must(template.ParseFiles("templates/signup_email.tmpl"))
+func sendMailWithConfirmLink(recipient, subject string, templ *template.Template, code string) error {
+    var buf bytes.Buffer
+    type confirmInfo struct { Email, Code string }
+    templ.Execute(&buf, confirmInfo{recipient, url.QueryEscape(code)})
+    return sendMail(recipient, subject, buf.String())
+}
+
+func userExists(db *gorm.DB, email string) (exists bool, err error) {
+    err = db.Model(&User{}).Select("1").Where("email = ?", email).Limit(1).Find(&exists).Error
+    return
+}
+
+var signupTmpl = must(htemplate.ParseFiles("templates/_base.tmpl", "templates/signup.tmpl"))
+var signupEmailTmpl = must(template.ParseFiles("templates/emails/confirm_signup.tmpl"))
 
 func (h *Handler) SignUp(w http.ResponseWriter, r *http.Request) {
-    if email, password, ok := getUserCredentials(w, r); ok {
-        if len(password) < 5 {
-            http.Error(w, "Password too short.", http.StatusBadRequest)
-            return
+    switch r.Method {
+    case http.MethodGet:
+        signupTmpl.Execute(w, nil)
+
+    case http.MethodPost:
+        if email, password, ok := getUserCredentials(w, r); ok {
+            if len(password) < 5 {
+                http.Error(w, "Password too short.", http.StatusBadRequest)
+                return
+            }
+            userExists, err := userExists(h.DB, email)
+            if err != nil {
+                reportServerError(w, err)
+                return
+            }
+            if userExists {
+                http.Error(w, "A user with this email is already registered.", http.StatusBadRequest)
+                return
+            }
+            hash, err := bcrypt.GenerateFromPassword([]byte(password), 0)
+            if err != nil {
+                http.Error(w, "Password too long.", http.StatusBadRequest)
+                return
+            }
+            code, err := generateRandomCode()
+            if err != nil {
+                reportServerError(w, err)
+                return
+            }
+            result := h.DB.Create(&User{
+                Email: email,
+                PwHash: hash,
+                ConfirmCode: code,
+                IsConfirmed: false,
+            })
+            if err = result.Error; err != nil {
+                reportServerError(w, err)
+                return
+            }
+
+            if err = sendMailWithConfirmLink(email, "TV-Suggest Registration", signupEmailTmpl, code); err != nil {
+                reportServerError(w, err)
+                return
+            }
+            w.WriteHeader(http.StatusOK)
+            w.Write([]byte("Registration sent. You should recieve an email with a confirmation link."))
         }
-        var userExists bool
-        err := h.DB.Model(&User{}).Select("1").Where("email = ?", email).Limit(1).Find(&userExists).Error
-        if err != nil {
-            reportServerError(w, err)
-            return
-        }
-        if userExists {
-            http.Error(w, "A user with this email is already registered.", http.StatusBadRequest)
-            return
-        }
-        hash, err := bcrypt.GenerateFromPassword([]byte(password), 0)
-        if err != nil {
-            http.Error(w, "Password too long.", http.StatusBadRequest)
-            return
-        }
-        code, err := generateRandomCode(32)
-        if err != nil {
-            reportServerError(w, err)
-            return
-        }
-        result := h.DB.Create(&User{
-            Email: email,
-            PwHash: hash,
-            ConfirmCode: code,
-            IsConfirmed: false,
-        })
-        if err = result.Error; err != nil {
-            reportServerError(w, err)
-            return
-        }
-        var buf bytes.Buffer
-        type confirmInfo struct { Email, Code string }
-        signupEmailTmpl.Execute(&buf, confirmInfo{email, url.QueryEscape(code)})
-        if err = sendMail(email, "TV-Suggest Registration", buf.String()); err != nil {
-            reportServerError(w, err)
-            return
-        }
-        w.WriteHeader(http.StatusOK)
     }
 }
 
@@ -202,12 +244,12 @@ func (h *Handler) ConfirmSignUp(w http.ResponseWriter, r *http.Request) {
     email, code := pathParams["email"], pathParams["code"]
     var user User
     err := h.DB.Where("email = ?", email).Find(&user).Error
-    if err != nil {
+    if errors.Is(err, gorm.ErrRecordNotFound) {
+        renderMsg(w, "Error", "There is no user with this email address.")
+    } else if err != nil {
         log.Println(err)
-        renderMsg(w, "Error", "There was an error. Maybe the registration request expired. Please try to sign up again.")
-        return
-    }
-    if user.ConfirmCode != code {
+        renderMsg(w, "Wrong Code", "Sorry, something went wrong.")
+    } else if user.ConfirmCode != code {
         renderMsg(w, "Wrong Code", "The confirmation code is incorrect.")
     } else {
         user.IsConfirmed = true
@@ -216,10 +258,87 @@ func (h *Handler) ConfirmSignUp(w http.ResponseWriter, r *http.Request) {
     }
 }
 
+var pwResetRequestTmpl = must(htemplate.ParseFiles("templates/_base.tmpl", "templates/pwreset_request.tmpl"))
+var pwResetMailTmpl = must(template.ParseFiles("templates/emails/pwreset.tmpl"))
 
-func reportServerError(w http.ResponseWriter, err error) {
-    log.Println(err)
-    http.Error(w, "Sorry, something went wrong.", http.StatusInternalServerError)
+func (h *Handler) RequestPwReset(w http.ResponseWriter, r *http.Request) {
+    switch r.Method {
+    case http.MethodGet:
+        pwResetRequestTmpl.Execute(w, nil)
+
+    case http.MethodPost:
+        r.ParseMultipartForm(256)
+        emails := r.MultipartForm.Value["email"]
+        if len(emails) != 1 {
+            http.Error(w, "Malformed Request.", http.StatusBadRequest)
+            return
+        }
+        email := emails[0]
+        userExists, err := userExists(h.DB, email)
+        if err != nil {
+            reportServerError(w, err)
+            return
+        }
+        if !userExists {
+            http.Error(w, "There is no user with this email address.", http.StatusBadRequest)
+        } else {
+            code, err := generateRandomCode()
+            if err != nil {
+                reportServerError(w, err)
+                return
+            }
+            err = h.DB.Exec("UPDATE users SET confirm_code = ? WHERE email = ?", code, email).Error
+            if err != nil {
+                reportServerError(w, err)
+                return
+            }
+
+            if err = sendMailWithConfirmLink(email, "TV-Suggest Password Reset", pwResetMailTmpl, code); err != nil {
+                reportServerError(w, err)
+                return
+            }
+            w.WriteHeader(http.StatusOK)
+            w.Write([]byte("Reset link sent. You should recieve an email with a link to reset your password."))
+        }
+    }
+}
+
+var pwResetTmpl = must(htemplate.ParseFiles("templates/_base.tmpl", "templates/pwreset.tmpl"))
+
+func (h *Handler) PwReset(w http.ResponseWriter, r *http.Request) {
+    switch r.Method {
+    case http.MethodGet:
+        pwResetTmpl.Execute(w, nil)
+
+    case http.MethodPost:
+        pathParams := mux.Vars(r)
+        email, code := pathParams["email"], pathParams["code"]
+
+        r.ParseMultipartForm(256)
+        passwords := r.MultipartForm.Value["passwd"]
+        if len(passwords) != 1 {
+            http.Error(w, "Malformed Request.", http.StatusBadRequest)
+            return
+        }
+        password := passwords[0]
+
+        var user User
+        err := h.DB.Where("email = ?", email).Find(&user).Error
+        if errors.Is(err, gorm.ErrRecordNotFound) {
+            http.Error(w, "There is no user with this email address.", http.StatusBadRequest)
+        } else if err != nil {
+            reportServerError(w, err)
+        } else if user.ConfirmCode != code {
+            http.Error(w, "The confirmation code is incorrect.", http.StatusBadRequest)
+        } else if hash, err := bcrypt.GenerateFromPassword([]byte(password), 0); err != nil {
+            reportServerError(w, err)
+        } else {
+            user.PwHash = hash
+            h.DB.Save(&user)
+            setUserLoggedIn(w, r, user.Email)
+            renderMsg(w, "Registration Completed", "You are now registered and can log in.")
+        }   
+    }
 }
 
 

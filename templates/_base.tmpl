@@ -15,5 +15,44 @@
     <a href="/privacy-policy">Privacy Policy</a>
   </div>
 
+  <script type="text/javascript">
+      
+    function formShowMsg(form, type, msg) {
+      let msgBox = form.querySelector(".msg-box")
+      msgBox.innerHTML = msg
+      msgBox.className = "msg-box " + type
+    }
+
+    function post(form, successUrl) {
+      event.preventDefault()
+
+      let loading = form.querySelector(".loading")
+      loading.classList.remove("hidden")
+
+      fetch(window.location.href, {
+        method: "POST",
+        body: new FormData(form)
+      })
+      .then(resp => {
+        loading.classList.add("hidden")
+        switch (resp.status) {
+        case 200:
+          if (successUrl == undefined)
+            resp.text().then(resp => formShowMsg(form, "info", resp))
+          else
+            window.location.href = successUrl
+          break
+        case 400:
+          resp.text().then(resp => formShowMsg(form, "error", resp))
+          break
+        case 500: case 502:
+          formShowMsg(form, "error", "Sorry something went wrong. Please try again later.")
+          break
+        }
+      })
+    }
+
+  </script>
+
 </body>
 </html>
