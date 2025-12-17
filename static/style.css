@@ -188,10 +188,10 @@ form.box {
   border-radius: 100%;
   background: center no-repeat;
   background-size: contain;
-  &.good   { background-image:url(/static/img/rating/good.svg);   }
-  &.bad    { background-image:url(/static/img/rating/bad.svg);    }
-  &.better { background-image:url(/static/img/rating/better.svg); }
-  &.worse  { background-image:url(/static/img/rating/worse.svg);  }
+  &.good    { background-image:url(/static/img/rating/good.svg);    }
+  &.bad     { background-image:url(/static/img/rating/bad.svg);     }
+  &.better  { background-image:url(/static/img/rating/better.svg);  }
+  &.neutral { background-image:url(/static/img/rating/neutral.svg); }
 
   &:hover { cursor: pointer; }
 

@@ -3,9 +3,10 @@
   <div id="head-bar"><div class="box">
     <div class="suggestions" onclick="loadSuggestions()">Suggestions</div>
     <div class="rating">
-      <div class="bad"    onclick="loadRating(this, -1)"></div>
-      <div class="good"   onclick="loadRating(this,  1)"></div>
-      <div class="better" onclick="loadRating(this,  2)"></div>
+      <div class="bad"     onclick="loadRating(this, -1)"></div>
+      <div class="neutral" onclick="loadRating(this,  0)"></div>
+      <div class="good"    onclick="loadRating(this,  1)"></div>
+      <div class="better"  onclick="loadRating(this,  2)"></div>
     </div>
     <form class="search" onsubmit="searchShow()">
       <input type="text" placeholder="Search Movie or TV-Show">

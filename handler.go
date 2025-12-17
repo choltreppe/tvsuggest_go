@@ -8,6 +8,7 @@ import (
 	"fmt"
 	htemplate "html/template"
 	"log"
+	"math"
 	"net/http"
 	"net/mail"
 	"net/url"
@@ -19,8 +20,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-    "gorm.io/driver/mysql"
 )
 
 func must[T any](v T, e error) T {
@@ -357,7 +358,7 @@ func (h *Handler) PwReset(w http.ResponseWriter, r *http.Request) {
 
 var showTmpl = must(htemplate.ParseFiles("templates/show.tmpl"))
 
-func renderShow(w http.ResponseWriter, show Show, rating int8) {
+func renderShow(w http.ResponseWriter, show Show, rating *int8) {
     type RatingButton struct {
         Name string
         Score int8
@@ -365,17 +366,22 @@ func renderShow(w http.ResponseWriter, show Show, rating int8) {
     }
     type ShowExt struct {
         Show
-        RatingButtons [3]RatingButton
+        RatingButtons [4]RatingButton
     }
     rb := func(name string, score int8) RatingButton {
-        return RatingButton{name, score, score == rating}
+        selected := false
+        if rating != nil {
+            selected = score == *rating
+        }
+        return RatingButton{name, score, selected}
     }
     showTmpl.Execute(w, ShowExt{
         Show: show,
-        RatingButtons: [3]RatingButton{
-            rb("bad"   , -1),
-            rb("good"  ,  1),
-            rb("better",  2),
+        RatingButtons: [4]RatingButton{
+            rb("bad"    , -1),
+            rb("neutral",  0),
+            rb("good"   ,  1),
+            rb("better" ,  2),
         },
     })
 }
@@ -418,7 +424,7 @@ func (h *Handler) MyRatings(w http.ResponseWriter, r *http.Request, user string)
         return
     }
     for _, show := range shows {
-        renderShow(w, show, score)
+        renderShow(w, show, &score)
     }
 }
 
@@ -428,7 +434,8 @@ func (h *Handler) Suggestions(w http.ResponseWriter, r *http.Request, user strin
         reportServerError(w, err)
         return
     }
+    score := int8(math.MinInt8)
     for _, show := range shows {
-        renderShow(w, show, 0)
+        renderShow(w, show, &score)
     }
 }

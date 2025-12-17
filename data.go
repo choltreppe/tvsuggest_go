@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -77,6 +78,9 @@ func FindShows(title string) (shows []Show, err error) {
     body, err := io.ReadAll(resp.Body)
     resp.Body.Close()
     if err != nil { return }
+    if resp.StatusCode != http.StatusOK {
+        return nil, errors.New(string(body))
+    }
     type ShowList struct {
         Titles []Show `json:"titles"`
     }
@@ -85,14 +89,17 @@ func FindShows(title string) (shows []Show, err error) {
     return showList.Titles, nil
 }
 
-func GetShowRating(db *gorm.DB, user, showId string) int8 {
+func GetShowRating(db *gorm.DB, user, showId string) *int8 {
     var score int8
-    db.Model(&UserRating{}).
+    err := db.Model(&UserRating{}).
         Order("updated_at desc").
         Select("score").
         Where("user_email = ? AND show_id = ?", user, showId).
-        Find(&score)
-    return score
+        First(&score).Error
+    if errors.Is(err, gorm.ErrRecordNotFound) {
+        return nil
+    }
+    return &score
 }
 
 func SetShowRating(db *gorm.DB, user, showId string, score int8) error {
