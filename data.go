@@ -143,13 +143,18 @@ func SuggestedShows(db *gorm.DB, user string) (shows []Show, err error) {
             SELECT show_id, score
             FROM user_ratings
             WHERE user_email = ? AND score > 0
+        ),
+        subj_ratings AS (
+            SELECT user_ratings.show_id, (own_ratings.score * sum(user_ratings.score)) AS score
+            FROM user_ratings
+            INNER JOIN own_ratings
+            WHERE user_ratings.show_id NOT IN (SELECT show_id FROM own_ratings)
+            GROUP BY user_ratings.show_id
         )
-        SELECT user_ratings.show_id
-        FROM user_ratings
-        INNER JOIN own_ratings
-        WHERE user_ratings.show_id NOT IN (SELECT show_id FROM own_ratings)
-        GROUP BY user_ratings.show_id
-        ORDER BY own_ratings.score * sum(user_ratings.score)
+        SELECT show_id
+        FROM subj_ratings
+        WHERE score > 0
+        ORDER BY score
         LIMIT 40
     `, user).Rows()
 
