@@ -284,10 +284,19 @@ form.box {
   }
 }
 
+body > .loading {
+  position: absolute;
+  top: 300px;
+  left: 50%;
+  translate: -50% 0;
+}
+
 #content {
-  margin: 34px;
+  width: calc(100% - 80px);
+  min-height: 200px;
   margin-top: 160px;
   margin-bottom: 80px;
+  background-color: var(--color-bg);
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -371,6 +380,18 @@ form.box {
       height: 80px;
     }
   }
+}
+
+#content.in { animation: content-in forwards 0.4s; }
+@keyframes content-in {
+  from { translate: 100vw 0; }
+  to   { translate: 0     0; }
+}
+
+#content.out { animation: content-out forwards 0.4s; }
+@keyframes content-out {
+  from { translate: 0      0; }
+  to   { translate: -100vw 0; }
 }
 
 #msg-page {

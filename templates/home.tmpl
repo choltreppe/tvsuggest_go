@@ -16,15 +16,17 @@
   
   <button id="logout" onclick="logout()"></button>
   
+  <div class="loading hidden"></div>
   <div id="content"></div>
 
   <script type="text/javascript">
     
-    let content = document.getElementById("content")
-    let suggestionsButton = document.querySelector("#head-bar .suggestions")
-    let ratingTabs = document.querySelector("#head-bar .rating").children
-    let searchBar = document.querySelector('#head-bar .search > input[type="text"]')
-    let searchSubmit = document.querySelector('#head-bar .search > input[type="submit"]')
+    const content = document.getElementById("content")
+    const suggestionsButton = document.querySelector("#head-bar .suggestions")
+    const ratingTabs = document.querySelector("#head-bar .rating").children
+    const searchBar = document.querySelector('#head-bar .search > input[type="text"]')
+    const searchSubmit = document.querySelector('#head-bar .search > input[type="submit"]')
+    const loading = document.querySelector("body > .loading")
 
     function unselectMenu() {
       suggestionsButton.classList.remove("selected")
@@ -36,10 +38,15 @@
 
     function loadContent(url) {
       unselectMenu()
-      content.innerHTML = '<div class="loading" title="logout"></div>'
-      fetch(url)
-      .then(resp => resp.text())
-      .then(resp => content.innerHTML = resp)
+      loading.classList.remove("hidden")
+      content.className = "out"
+      const timer = new Promise(resolve => setTimeout(resolve, 400))
+      const req = fetch(url).then(resp => resp.text())
+      Promise.all([timer, req])
+      .then(([_, resp]) => {
+        content.innerHTML = resp
+        content.className = "in"
+      })
     }
 
     function loadSuggestions() {

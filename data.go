@@ -142,7 +142,7 @@ func SuggestedShows(db *gorm.DB, user string) (shows []Show, err error) {
         WITH own_ratings AS (
             SELECT show_id, score
             FROM user_ratings
-            WHERE user_email = ?
+            WHERE user_email = ? AND score > 0
         )
         SELECT user_ratings.show_id
         FROM user_ratings
